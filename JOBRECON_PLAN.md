@@ -638,3 +638,8 @@ Output esperado:
 ¿Vamos? 🚀
 Empezamos con el scraper de InfoJobs. Dame 5 min para escribirte el código nuevo de scrapers/infojobs.py
 ¿Listo?
+
+
+----
+
+Nota Linux/Kali: InfoJobs aplica CAPTCHA en entornos no-browser. En Linux el scraper usa automáticamente el fallback LinkedIn. Para mejores resultados en Linux se recomienda aumentar --max-ofertas para compensar.
