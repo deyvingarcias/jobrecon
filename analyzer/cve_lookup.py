@@ -26,6 +26,16 @@ class CVELookup:
         self._mostrar_estado_api()
 
     # ------------------------------------------------------------------
+    # COMPATIBILIDAD CON MAIN (FIX DEL ERROR)
+    # ------------------------------------------------------------------
+
+    def lookup(self, tecnologias: dict) -> list[dict]:
+        """
+        Alias para mantener compatibilidad con código existente (main.py).
+        """
+        return self.buscar(tecnologias)
+
+    # ------------------------------------------------------------------
     # ESTADO DE LA API
     # ------------------------------------------------------------------
 
@@ -45,21 +55,6 @@ class CVELookup:
         """
         Recibe el diccionario de tecnologías detectadas y devuelve
         una lista de CVEs ordenadas por score CVSS descendente.
-
-        Args:
-            tecnologias: {"SAP": 5, "Apache": 3, ...}
-
-        Returns:
-            [
-                {
-                    "id": "CVE-2025-0070",
-                    "tecnologia": "SAP",
-                    "severidad": "CRITICAL",
-                    "score": 9.8,
-                    "descripcion": "..."
-                },
-                ...
-            ]
         """
         if not tecnologias:
             print(f"{Fore.YELLOW}[CVE] No hay tecnologías para consultar.{Style.RESET_ALL}")
@@ -72,10 +67,9 @@ class CVELookup:
         for tech in tecnologias.keys():
             cves = self._buscar_cves_de_tech(tech)
             todas_cves.extend(cves)
-            # nvdlib gestiona el delay internamente, pero añadimos uno extra por seguridad
             time.sleep(0.5)
 
-        # Ordenar todas las CVEs por score descendente
+        # Ordenar por score descendente
         todas_cves.sort(key=lambda x: x["score"], reverse=True)
 
         self._mostrar_resumen(todas_cves)
@@ -86,10 +80,6 @@ class CVELookup:
     # ------------------------------------------------------------------
 
     def _buscar_cves_de_tech(self, tech: str) -> list[dict]:
-        """
-        Consulta la NVD por una tecnología concreta y filtra
-        las CVEs con score >= SCORE_MINIMO.
-        """
         print(f"  {Fore.CYAN}→{Style.RESET_ALL} Buscando CVEs para: {tech}")
 
         try:
@@ -97,7 +87,7 @@ class CVELookup:
                 keywordSearch=tech,
                 limit=self.MAX_CVE_POR_TECH,
                 key=self.api_key,
-                delay=None  # nvdlib gestiona el delay según si hay key o no
+                delay=None
             )
         except Exception as e:
             print(f"{Fore.RED}  [!] Error consultando NVD para '{tech}': {e}{Style.RESET_ALL}")
@@ -108,7 +98,6 @@ class CVELookup:
         for cve in resultados:
             score, severidad = self._extraer_score(cve)
 
-            # Filtrar por score mínimo
             if score < self.SCORE_MINIMO:
                 continue
 
@@ -124,55 +113,51 @@ class CVELookup:
         return cves_filtradas
 
     # ------------------------------------------------------------------
-    # HELPERS DE EXTRACCIÓN
+    # HELPERS
     # ------------------------------------------------------------------
 
     def _extraer_score(self, cve) -> tuple[float, str]:
-        """
-        Extrae el score CVSS y la severidad de una CVE.
-        Intenta CVSS v3.1 primero, luego v3.0, luego v2.
-        Devuelve (0.0, "UNKNOWN") si no hay datos de score.
-        """
         try:
-            # CVSS v3.x (preferido)
-            metricas = cve.metrics.cvssMetricV31 or cve.metrics.cvssMetricV30
-            if metricas:
-                datos = metricas[0].cvssData
-                return round(datos.baseScore, 1), datos.baseSeverity
-        except AttributeError:
-            pass
+            metricas = getattr(cve, "metrics", None)
 
-        try:
-            # CVSS v2 (fallback)
-            metricas_v2 = cve.metrics.cvssMetricV2
-            if metricas_v2:
-                datos = metricas_v2[0].cvssData
-                return round(datos.baseScore, 1), "LEGACY"
-        except AttributeError:
+            if metricas:
+                v31 = getattr(metricas, "cvssMetricV31", None)
+                v30 = getattr(metricas, "cvssMetricV30", None)
+
+                if v31:
+                    datos = v31[0].cvssData
+                    return round(datos.baseScore, 1), datos.baseSeverity
+
+                if v30:
+                    datos = v30[0].cvssData
+                    return round(datos.baseScore, 1), datos.baseSeverity
+
+                v2 = getattr(metricas, "cvssMetricV2", None)
+                if v2:
+                    datos = v2[0].cvssData
+                    return round(datos.baseScore, 1), "LEGACY"
+
+        except Exception:
             pass
 
         return 0.0, "UNKNOWN"
 
     def _extraer_descripcion(self, cve) -> str:
-        """
-        Extrae la descripción en inglés de la CVE.
-        Devuelve cadena vacía si no hay descripción disponible.
-        """
         try:
-            for desc in cve.descriptions:
+            for desc in getattr(cve, "descriptions", []):
                 if desc.lang == "en":
-                    # Truncar a 200 caracteres para el informe
-                    return desc.value[:200] + "..." if len(desc.value) > 200 else desc.value
-        except AttributeError:
+                    texto = desc.value
+                    return texto[:200] + "..." if len(texto) > 200 else texto
+        except Exception:
             pass
+
         return "No description available."
 
     # ------------------------------------------------------------------
-    # MOSTRAR RESUMEN EN TERMINAL
+    # OUTPUT
     # ------------------------------------------------------------------
 
     def _mostrar_resumen(self, cves: list[dict]):
-        """Muestra tabla de CVEs encontradas con colores por severidad."""
         if not cves:
             print(f"{Fore.YELLOW}[CVE] No se encontraron CVEs relevantes (score >= {self.SCORE_MINIMO}).{Style.RESET_ALL}")
             return

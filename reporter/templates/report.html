@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JobRecon Report — {{ empresa }}</title>
+    <style>
+        /* ── RESET & BASE ───────────────────────────────────────── */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            padding: 40px 60px;
+            line-height: 1.6;
+        }
+
+        /* ── HEADER ─────────────────────────────────────────────── */
+        .header {
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 24px 32px;
+            margin-bottom: 32px;
+            background-color: #161b22;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            color: #58a6ff;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .header h1 span {
+            color: #f0f6fc;
+        }
+
+        .meta {
+            display: flex;
+            gap: 40px;
+            color: #8b949e;
+            font-size: 13px;
+        }
+
+        .meta span { color: #c9d1d9; }
+
+        /* ── SECCIONES ───────────────────────────────────────────── */
+        .section {
+            margin-bottom: 32px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background-color: #161b22;
+            padding: 12px 24px;
+            font-size: 13px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #58a6ff;
+            border-bottom: 1px solid #30363d;
+        }
+
+        .section-body {
+            padding: 20px 24px;
+        }
+
+        /* ── TECNOLOGÍAS ─────────────────────────────────────────── */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 12px;
+        }
+
+        .tech-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .tech-name {
+            width: 180px;
+            color: #e6edf3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tech-bar-container {
+            flex: 1;
+            background-color: #21262d;
+            border-radius: 3px;
+            height: 10px;
+            overflow: hidden;
+        }
+
+        .tech-bar {
+            height: 100%;
+            background-color: #1f6feb;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .tech-count {
+            width: 24px;
+            text-align: right;
+            color: #8b949e;
+            font-size: 12px;
+        }
+
+        /* ── TABLA CVEs ──────────────────────────────────────────── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead tr {
+            background-color: #161b22;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 11px;
+        }
+
+        th {
+            padding: 10px 16px;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+
+        td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #21262d;
+            vertical-align: top;
+        }
+
+        tbody tr:hover {
+            background-color: #161b22;
+        }
+
+        /* ── BADGES DE SEVERIDAD ─────────────────────────────────── */
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .badge-CRITICAL { background-color: #3d0000; color: #ff7b72; border: 1px solid #ff7b72; }
+        .badge-HIGH     { background-color: #2d1a00; color: #f0883e; border: 1px solid #f0883e; }
+        .badge-MEDIUM   { background-color: #2d2a00; color: #e3b341; border: 1px solid #e3b341; }
+        .badge-LEGACY   { background-color: #1c2128; color: #8b949e; border: 1px solid #8b949e; }
+        .badge-UNKNOWN  { background-color: #1c2128; color: #8b949e; border: 1px solid #8b949e; }
+
+        .score {
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .score-critical { color: #ff7b72; }
+        .score-high     { color: #f0883e; }
+        .score-medium   { color: #e3b341; }
+        .score-other    { color: #8b949e; }
+
+        .cve-id {
+            color: #58a6ff;
+            font-weight: bold;
+        }
+
+        .cve-desc {
+            color: #8b949e;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        /* ── FOOTER ─────────────────────────────────────────────── */
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #30363d;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        /* ── MENSAJE VACÍO ───────────────────────────────────────── */
+        .empty {
+            color: #8b949e;
+            font-style: italic;
+            padding: 12px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>JobRecon <span>// {{ empresa }}</span></h1>
+        <div class="meta">
+            <div>Fecha: <span>{{ fecha }}</span></div>
+            <div>Ofertas analizadas: <span>{{ total_ofertas }}</span></div>
+            <div>Tecnologías detectadas: <span>{{ tecnologias | length }}</span></div>
+            <div>CVEs encontradas: <span>{{ cves | length }}</span></div>
+        </div>
+    </div>
+
+    <!-- TECNOLOGÍAS DETECTADAS -->
+    <div class="section">
+        <div class="section-header">// Tecnologías detectadas</div>
+        <div class="section-body">
+            {% if tecnologias %}
+                <div class="tech-grid">
+                    {% set max_menciones = tecnologias.values() | max %}
+                    {% for tech, menciones in tecnologias.items() %}
+                    <div class="tech-item">
+                        <div class="tech-name">{{ tech }}</div>
+                        <div class="tech-bar-container">
+                            <div class="tech-bar"
+                                 style="width: {{ (menciones / max_menciones * 100) | int }}%">
+                            </div>
+                        </div>
+                        <div class="tech-count">{{ menciones }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty">No se detectaron tecnologías conocidas.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- CVEs ENCONTRADAS -->
+    <div class="section">
+        <div class="section-header">// CVEs encontradas (score ≥ 7.0)</div>
+        <div class="section-body">
+            {% if cves %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Severidad</th>
+                            <th>Score</th>
+                            <th>CVE ID</th>
+                            <th>Tecnología</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cve in cves %}
+                        <tr>
+                            <td>
+                                <span class="badge badge-{{ cve.severidad }}">
+                                    {{ cve.severidad }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="score score-{{ cve.severidad | lower }}">
+                                    {{ cve.score }}
+                                </span>
+                            </td>
+                            <td class="cve-id">{{ cve.id }}</td>
+                            <td>{{ cve.tecnologia }}</td>
+                            <td>
+                                {{ cve.descripcion }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="empty">No se encontraron CVEs con score ≥ 7.0.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        JOBRECON — OSINT Tool | Passive Reconnaissance | Generated {{ fecha }}
+    </div>
+
+</body>
+</html>

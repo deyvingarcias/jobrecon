@@ -3,6 +3,7 @@
 import json
 import re
 from pathlib import Path
+
 from colorama import Fore, Style
 
 
@@ -40,6 +41,14 @@ class TechExtractor:
     # MÉTODO PRINCIPAL
     # ------------------------------------------------------------------
 
+    def extract(self, ofertas: list[str]) -> dict:
+        """
+        Alias compatible con main.py.
+        Recibe lista de textos de ofertas y devuelve un diccionario
+        con cada tecnología detectada y el número de menciones.
+        """
+        return self.analizar(ofertas)
+
     def analizar(self, ofertas: list[str]) -> dict:
         """
         Recibe lista de textos de ofertas y devuelve un diccionario
@@ -63,12 +72,11 @@ class TechExtractor:
         conteo = {}
 
         for oferta in ofertas:
-            texto = oferta.lower()  # Comparación case-insensitive
+            texto = oferta.lower()
             detecciones = self._detectar_tecnologias(texto)
             for tech in detecciones:
                 conteo[tech] = conteo.get(tech, 0) + 1
 
-        # Ordenar de mayor a menor menciones
         resultado = dict(sorted(conteo.items(), key=lambda x: x[1], reverse=True))
 
         self._mostrar_resumen(resultado)
@@ -86,11 +94,9 @@ class TechExtractor:
         """
         detecciones = set()
 
-        for categoria, tecnologias in self.keywords.items():
+        for _, tecnologias in self.keywords.items():
             for tech in tecnologias:
-                # Búsqueda con word boundary para evitar falsos positivos
-                # Ejemplo: "java" no debe detectarse dentro de "javascript"
-                patron = r'\b' + re.escape(tech.lower()) + r'\b'
+                patron = r"\b" + re.escape(tech.lower()) + r"\b"
                 if re.search(patron, texto):
                     detecciones.add(tech)
 
@@ -110,7 +116,7 @@ class TechExtractor:
             return
 
         max_menciones = max(resultado.values())
-        barra_max = 20  # Longitud máxima de la barra visual
+        barra_max = 20
 
         print(f"\n{Fore.GREEN}{'─' * 50}")
         print(f"  TECNOLOGÍAS DETECTADAS")

@@ -265,3 +265,209 @@ CVEs ENCONTRADAS:
 - El .env nunca va a GitHub — la key de NVD es gratis pero personal
 - Los scrapers pueden romperse si el portal cambia su HTML — es mantenimiento normal, no un bug grave
 - Todo el proyecto corre en local, sin servidor, sin dominio, coste 0€
+
+
+----------- DIA 2 ----------------
+🔄 ACTUALIZACIÓN DEL PROYECTO — JOBRECON  
+Estado actualizado del proyecto (tras nuevos avances)
+
+⚠️ Nota: Este bloque actualiza el estado original. El resto del documento sigue siendo válido.
+
+Archivo	Estado
+main.py	✅ Hecho — CLI funcional con banner y argparse
+requirements.txt	✅ Hecho
+.gitignore	✅ Hecho
+.env	✅ Creado (sin key por ahora)
+config/tech_keywords.json	✅ Hecho — diccionario completo de ~100 tecnologías
+scrapers/base_scraper.py	✅ Hecho — clase base con headers, delays, requests y limpieza HTML
+scrapers/infojobs.py	✅ Hecho — scraping funcional de InfoJobs España
+scrapers/indeed.py	✅ Hecho — scraping funcional de Indeed España
+analyzer/extractor.py	✅ Hecho — detección de tecnologías con regex y conteo
+analyzer/cve_lookup.py	✅ Hecho — integración con NVD + filtrado por CVSS
+reporter/html_report.py	⏳ Pendiente
+reporter/templates/report.html	✅ Hecho — plantilla HTML completa estilo terminal
+README.md	⏳ Pendiente (se hace al final)
+
+🆕 Nuevos hitos completados
+✅ Repositorio GitHub creado y publicado  
+Repo: jobrecon  
+Estado: público y listo para CV
+
+Primer commit realizado correctamente:
+
+feat: initial project structure - Phase 1 complete
+
+Buenas prácticas aplicadas:
+.env protegido (no subido)
+.gitignore correctamente configurado
+Estructura limpia y profesional
+
+✅ Fase 2 — Scrapers COMPLETADA
+
+Se han implementado los 3 componentes clave:
+
+BaseScraper
+
+Rotación de User-Agent
+Headers realistas
+Manejo de errores HTTP
+Delay anti-bloqueo
+Limpieza de HTML
+
+InfoJobsScraper
+
+Búsqueda por empresa
+Extracción de URLs
+Parsing de título, descripción y requisitos
+Fallback robusto
+
+IndeedScraper
+
+Adaptado a estructura de Indeed
+Uso de data-jk
+Extracción completa de contenido
+
+✔ Resultado: sistema funcional que devuelve texto real de ofertas
+
+✅ Fase 3 — Analyzer COMPLETADA
+
+TechExtractor
+
+Carga de tech_keywords.json
+Detección con regex usando \b (sin falsos positivos)
+Conteo por oferta (no duplicados internos)
+Output ordenado
+Visualización en terminal
+
+CVELookup
+
+Integración con NVD (nvdlib)
+Soporte con/sin API key
+Extracción CVSS v3 → fallback v2
+Filtro por score ≥ 7.0
+Limitación por tecnología
+Output coloreado por severidad
+
+✔ Resultado: pipeline completo de inteligencia → tecnologías → vulnerabilidades
+
+✅ Fase 4 — Parcialmente completada
+
+report.html
+
+Plantilla profesional estilo terminal oscuro
+Uso de Jinja2
+Visualización:
+Tecnologías con barras dinámicas
+Tabla de CVEs con colores por severidad
+Responsive y lista para producción
+
+❗ Pendiente:
+
+html_report.py (lógica de renderizado)
+
+📊 Estado global actualizado
+Fase	Estado
+Fase 1 — Base	✅ COMPLETADA
+Fase 2 — Scrapers	✅ COMPLETADA
+Fase 3 — Analyzer	✅ COMPLETADA
+Fase 4 — Reporter	🟡 80% (falta html_report.py)
+Fase 5 — Integración	⏳ Pendiente
+Fase 6 — Pulido	⏳ Pendiente
+
+🧠 Nota para futuras iteraciones (MUY IMPORTANTE)
+
+El proyecto ya no está en fase inicial.
+
+➡️ Estado real actual:
+
+Scraping funcional
+Análisis funcional
+Integración con CVEs funcional
+Solo falta:
+Generación final del HTML (html_report.py)
+Conexión completa en main.py
+Testing end-to-end
+
+👉 Esto significa que cualquier IA o chat debe:
+
+NO volver a explicar Fase 1
+NO reescribir scrapers básicos
+Enfocarse en:
+integración
+debugging
+mejoras
+optimización
+presentación (CV/GitHub)
+
+🎯 Siguiente paso lógico (actualizado)
+
+➡️ Implementar:
+
+reporter/html_report.py
+
+Que debe:
+
+Cargar plantilla Jinja2
+Pasar datos:
+empresa
+fecha
+tecnologías
+CVEs
+total de ofertas
+Guardar en output/
+Abrir automáticamente en navegador
+
+
+# JOBRECON — Plan Completo del Proyecto
+
+## ¿Qué es JobRecon?
+
+JobRecon es una herramienta de ciberseguridad desarrollada en Python orientada al **reconocimiento pasivo (OSINT)**. Su función principal es analizar las ofertas de trabajo públicas de una empresa objetivo para deducir qué tecnologías utiliza internamente, y cruzar esa información con la base de datos oficial de vulnerabilidades conocidas (NVD/CVEs) para generar un informe de posibles vectores de ataque.
+
+Es una herramienta 100% de reconocimiento pasivo: no envía ningún paquete a los servidores del objetivo, solo analiza información pública. Esto la hace legal y éticamente usable en contextos de Red Team real y en entornos educativos.
+
+---
+
+## Contexto del autor
+
+- **Nombre:** Deyvin García
+- **Estudios:** CFGS Sistemas Informáticos y Ciberseguridad — Institut Baix Camp, Reus
+- **Objetivo profesional:** Red Team / Hacking ético (eJPT → CEH)
+- **Propósito del proyecto:** Proyecto propio para CV, prácticas (1000h, inicio julio) y GitHub
+
+---
+
+## ¿Por qué es original?
+
+Existen herramientas de recon (FinalRecon, reconFTW, theHarvester, SpiderFoot) pero ninguna explota las **ofertas de trabajo** como fuente de inteligencia. Existe JobSpy que scrapea ofertas pero no hace ningún análisis de seguridad. La combinación concreta de:
+
+**job scraping español (InfoJobs/Indeed ES) + keyword extraction + CVE mapping automático**
+
+...no existe como herramienta standalone en GitHub. Es una idea original.
+
+---
+
+## Stack tecnológico
+
+| Elemento | Detalle |
+|---|---|
+| Lenguaje | Python 3.11+ |
+| Editor | VS Code |
+| Sistema operativo | Windows (desarrollo) / Compatible con Kali Linux |
+| Scraping | requests + BeautifulSoup4 |
+| Extracción de texto | re (regex estándar de Python) |
+| CVEs | nvdlib (wrapper oficial de la NVD API v2 del NIST) |
+| Informes | Jinja2 (plantillas HTML) |
+| CLI | argparse (estándar de Python) |
+| Colores terminal | colorama |
+| Variables de entorno | python-dotenv |
+
+---
+
+## Instalación de dependencias
+
+```bash
+pip install -r requirements.txt
+
+
+------------------------------

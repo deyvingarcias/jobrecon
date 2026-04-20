@@ -14,6 +14,10 @@ __pycache__/
 dist/
 build/
 
+# Entornos virtuales
+.venv/
+venv/
+
 # VS Code
 .vscode/
 *.code-workspace
