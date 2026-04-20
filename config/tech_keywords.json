@@ -1,0 +1,14 @@
+{
+  "web_servers": ["Apache", "Nginx", "IIS", "Tomcat", "LiteSpeed"],
+  "databases": ["MySQL", "MariaDB", "PostgreSQL", "Oracle", "MongoDB", "Redis", "SQL Server", "SQLite"],
+  "languages": ["PHP", "Python", "Java", "JavaScript", "TypeScript", "Ruby", "Go", "C#", ".NET"],
+  "frameworks": ["Laravel", "Django", "Spring", "React", "Angular", "Vue", "Node.js", "Express"],
+  "os": ["Windows Server", "Ubuntu", "CentOS", "Debian", "Red Hat", "RHEL"],
+  "network": ["Cisco", "Fortinet", "FortiGate", "Palo Alto", "pfSense", "Juniper", "F5"],
+  "virtualization": ["VMware", "VirtualBox", "Hyper-V", "Docker", "Kubernetes", "Proxmox"],
+  "cloud": ["AWS", "Azure", "Google Cloud", "GCP", "Cloudflare"],
+  "identity": ["Active Directory", "LDAP", "Okta", "Azure AD"],
+  "erp": ["SAP", "SAP S/4HANA", "SAP NetWeaver", "Oracle ERP", "Dynamics 365"],
+  "monitoring": ["Zabbix", "Nagios", "Grafana", "Splunk", "Elastic", "Kibana"],
+  "other": ["WordPress", "Joomla", "Drupal", "Magento", "Confluence", "Jira", "GitLab"]
+}

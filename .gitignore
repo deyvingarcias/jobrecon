@@ -1,0 +1,23 @@
+# API Keys - NUNCA subir esto a GitHub
+.env
+
+# Informes generados
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sistema
+.DS_Store
+Thumbs.db
