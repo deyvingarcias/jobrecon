@@ -1,6 +1,10 @@
 # API Keys - NUNCA subir esto a GitHub
 .env
 
+# Entorno virtual
+.venv/
+venv/
+
 # Informes generados
 output/
 
@@ -9,14 +13,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
 *.egg-info/
 dist/
 build/
-
-# Entornos virtuales
-.venv/
-venv/
 
 # VS Code
 .vscode/

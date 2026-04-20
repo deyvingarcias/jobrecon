@@ -1,288 +1,490 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>JobRecon Report — {{ empresa }}</title>
+
     <style>
-        /* ── RESET & BASE ───────────────────────────────────────── */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* ─────────────────────────────────────────────────────────────
+           BASE / RESET
+        ───────────────────────────────────────────────────────────── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #0b0f14;
+            --panel: #121821;
+            --panel-2: #0f141b;
+            --line: #273241;
+            --text: #d7dde5;
+            --muted: #8b95a5;
+            --accent: #5ea1ff;
+
+            --critical: #ff4444;
+            --critical-bg: rgba(255, 68, 68, 0.14);
+
+            --high: #ff8800;
+            --high-bg: rgba(255, 136, 0, 0.14);
+
+            --medium: #ffcc00;
+            --medium-bg: rgba(255, 204, 0, 0.14);
+
+            --legacy: #8a9099;
+            --legacy-bg: rgba(138, 144, 153, 0.14);
+
+            --bar-bg: #1b2430;
+            --bar-fill: linear-gradient(90deg, #2d7dff 0%, #5ea1ff 100%);
+        }
 
         body {
-            background-color: #0d1117;
-            color: #c9d1d9;
-            font-family: 'Courier New', Courier, monospace;
+            background: radial-gradient(circle at top, #101722 0%, var(--bg) 55%);
+            color: var(--text);
+            font-family: "Courier New", Courier, monospace;
             font-size: 14px;
-            padding: 40px 60px;
-            line-height: 1.6;
+            line-height: 1.55;
+            padding: 32px;
         }
 
-        /* ── HEADER ─────────────────────────────────────────────── */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           HEADER
+        ───────────────────────────────────────────────────────────── */
         .header {
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 24px 32px;
-            margin-bottom: 32px;
-            background-color: #161b22;
+            background: linear-gradient(180deg, #141b25 0%, #10161f 100%);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 24px 28px;
+            margin-bottom: 22px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
         }
 
-        .header h1 {
-            font-size: 22px;
-            color: #58a6ff;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-
-        .header h1 span {
-            color: #f0f6fc;
-        }
-
-        .meta {
+        .header-top {
             display: flex;
-            gap: 40px;
-            color: #8b949e;
-            font-size: 13px;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
         }
 
-        .meta span { color: #c9d1d9; }
+        .brand h1 {
+            font-size: 22px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #f0f6fc;
+            margin-bottom: 6px;
+        }
 
-        /* ── SECCIONES ───────────────────────────────────────────── */
+        .brand h1 span {
+            color: var(--accent);
+        }
+
+        .brand p {
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(160px, 1fr));
+            gap: 12px;
+        }
+
+        .meta-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 12px 14px;
+            min-height: 72px;
+        }
+
+        .meta-label {
+            display: block;
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .meta-value {
+            color: #f0f6fc;
+            font-size: 16px;
+            font-weight: bold;
+            word-break: break-word;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           SECTION
+        ───────────────────────────────────────────────────────────── */
         .section {
-            margin-bottom: 32px;
-            border: 1px solid #30363d;
-            border-radius: 6px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
             overflow: hidden;
+            background: rgba(255, 255, 255, 0.02);
+            margin-bottom: 22px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         }
 
         .section-header {
-            background-color: #161b22;
-            padding: 12px 24px;
-            font-size: 13px;
-            letter-spacing: 2px;
+            background: linear-gradient(180deg, #141b25 0%, #10161f 100%);
+            border-bottom: 1px solid var(--line);
+            padding: 14px 18px;
+            color: var(--accent);
             text-transform: uppercase;
-            color: #58a6ff;
-            border-bottom: 1px solid #30363d;
+            letter-spacing: 2px;
+            font-size: 12px;
         }
 
         .section-body {
-            padding: 20px 24px;
+            padding: 18px;
+            background: rgba(9, 13, 18, 0.35);
         }
 
-        /* ── TECNOLOGÍAS ─────────────────────────────────────────── */
-        .tech-grid {
+        .empty {
+            color: var(--muted);
+            font-style: italic;
+            padding: 8px 2px;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           TECNOLOGÍAS
+        ───────────────────────────────────────────────────────────── */
+        .tech-list {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 14px;
         }
 
         .tech-item {
+            padding: 12px 14px;
+            border: 1px solid #1d2733;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .tech-row {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 12px;
+            margin-bottom: 10px;
         }
 
         .tech-name {
-            width: 180px;
             color: #e6edf3;
+            font-weight: bold;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
-        .tech-bar-container {
-            flex: 1;
-            background-color: #21262d;
-            border-radius: 3px;
-            height: 10px;
+        .tech-count {
+            color: var(--muted);
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .progress {
+            width: 100%;
+            height: 11px;
+            background: var(--bar-bg);
+            border: 1px solid #243040;
+            border-radius: 999px;
             overflow: hidden;
         }
 
-        .tech-bar {
+        .progress-bar {
             height: 100%;
-            background-color: #1f6feb;
-            border-radius: 3px;
-            transition: width 0.3s ease;
+            background: var(--bar-fill);
+            border-radius: 999px;
+            min-width: 2px;
         }
 
-        .tech-count {
-            width: 24px;
-            text-align: right;
-            color: #8b949e;
-            font-size: 12px;
+        /* ─────────────────────────────────────────────────────────────
+           TABLE
+        ───────────────────────────────────────────────────────────── */
+        .table-wrap {
+            overflow-x: auto;
         }
 
-        /* ── TABLA CVEs ──────────────────────────────────────────── */
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
+            min-width: 1120px;
         }
 
-        thead tr {
-            background-color: #161b22;
-            color: #8b949e;
+        thead th {
+            text-align: left;
+            padding: 12px 14px;
+            background: #141b25;
+            color: var(--muted);
+            border-bottom: 1px solid var(--line);
             text-transform: uppercase;
             letter-spacing: 1px;
             font-size: 11px;
+            white-space: nowrap;
         }
 
-        th {
-            padding: 10px 16px;
-            text-align: left;
-            border-bottom: 1px solid #30363d;
-        }
-
-        td {
-            padding: 10px 16px;
-            border-bottom: 1px solid #21262d;
+        tbody td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #1c2531;
             vertical-align: top;
+            color: var(--text);
         }
 
         tbody tr:hover {
-            background-color: #161b22;
+            background: rgba(255, 255, 255, 0.03);
         }
 
-        /* ── BADGES DE SEVERIDAD ─────────────────────────────────── */
+        .cve-id {
+            color: #7db7ff;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .tech-cell {
+            color: #e6edf3;
+            font-weight: 600;
+            word-break: break-word;
+        }
+
+        .desc-cell {
+            color: #a8b3c2;
+            max-width: 640px;
+            word-break: break-word;
+        }
+
+        .num {
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           BADGES
+        ───────────────────────────────────────────────────────────── */
         .badge {
-            display: inline-block;
-            padding: 2px 10px;
-            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 10px;
+            border-radius: 999px;
             font-size: 11px;
             font-weight: bold;
             letter-spacing: 1px;
             text-transform: uppercase;
+            border: 1px solid transparent;
+            white-space: nowrap;
         }
 
-        .badge-CRITICAL { background-color: #3d0000; color: #ff7b72; border: 1px solid #ff7b72; }
-        .badge-HIGH     { background-color: #2d1a00; color: #f0883e; border: 1px solid #f0883e; }
-        .badge-MEDIUM   { background-color: #2d2a00; color: #e3b341; border: 1px solid #e3b341; }
-        .badge-LEGACY   { background-color: #1c2128; color: #8b949e; border: 1px solid #8b949e; }
-        .badge-UNKNOWN  { background-color: #1c2128; color: #8b949e; border: 1px solid #8b949e; }
-
-        .score {
-            font-weight: bold;
-            font-size: 13px;
+        .badge-critical {
+            color: var(--critical);
+            background: var(--critical-bg);
+            border-color: rgba(255, 68, 68, 0.45);
         }
 
-        .score-critical { color: #ff7b72; }
-        .score-high     { color: #f0883e; }
-        .score-medium   { color: #e3b341; }
-        .score-other    { color: #8b949e; }
-
-        .cve-id {
-            color: #58a6ff;
-            font-weight: bold;
+        .badge-high {
+            color: var(--high);
+            background: var(--high-bg);
+            border-color: rgba(255, 136, 0, 0.45);
         }
 
-        .cve-desc {
-            color: #8b949e;
-            font-size: 12px;
-            margin-top: 4px;
+        .badge-medium {
+            color: var(--medium);
+            background: var(--medium-bg);
+            border-color: rgba(255, 204, 0, 0.45);
         }
 
-        /* ── FOOTER ─────────────────────────────────────────────── */
+        .badge-legacy {
+            color: var(--legacy);
+            background: var(--legacy-bg);
+            border-color: rgba(138, 144, 153, 0.35);
+        }
+
+        .badge-unknown {
+            color: var(--legacy);
+            background: var(--legacy-bg);
+            border-color: rgba(138, 144, 153, 0.35);
+        }
+
+        .score-critical { color: var(--critical); font-weight: bold; }
+        .score-high     { color: var(--high); font-weight: bold; }
+        .score-medium   { color: var(--medium); font-weight: bold; }
+        .score-legacy   { color: var(--legacy); font-weight: bold; }
+        .score-unknown   { color: var(--legacy); font-weight: bold; }
+
+        /* ─────────────────────────────────────────────────────────────
+           FOOTER
+        ───────────────────────────────────────────────────────────── */
         .footer {
-            margin-top: 40px;
+            margin-top: 22px;
             text-align: center;
-            color: #30363d;
+            color: #647083;
             font-size: 12px;
             letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 8px 0 4px;
         }
 
-        /* ── MENSAJE VACÍO ───────────────────────────────────────── */
-        .empty {
-            color: #8b949e;
-            font-style: italic;
-            padding: 12px 0;
+        /* ─────────────────────────────────────────────────────────────
+           RESPONSIVE
+        ───────────────────────────────────────────────────────────── */
+        @media (max-width: 900px) {
+            body {
+                padding: 18px;
+            }
+
+            .meta-grid {
+                grid-template-columns: repeat(2, minmax(140px, 1fr));
+            }
+        }
+
+        @media (max-width: 560px) {
+            .meta-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                padding: 18px;
+            }
+
+            .section-body {
+                padding: 14px;
+            }
         }
     </style>
 </head>
 <body>
+    <div class="container">
 
-    <!-- HEADER -->
-    <div class="header">
-        <h1>JobRecon <span>// {{ empresa }}</span></h1>
-        <div class="meta">
-            <div>Fecha: <span>{{ fecha }}</span></div>
-            <div>Ofertas analizadas: <span>{{ total_ofertas }}</span></div>
-            <div>Tecnologías detectadas: <span>{{ tecnologias | length }}</span></div>
-            <div>CVEs encontradas: <span>{{ cves | length }}</span></div>
-        </div>
-    </div>
-
-    <!-- TECNOLOGÍAS DETECTADAS -->
-    <div class="section">
-        <div class="section-header">// Tecnologías detectadas</div>
-        <div class="section-body">
-            {% if tecnologias %}
-                <div class="tech-grid">
-                    {% set max_menciones = tecnologias.values() | max %}
-                    {% for tech, menciones in tecnologias.items() %}
-                    <div class="tech-item">
-                        <div class="tech-name">{{ tech }}</div>
-                        <div class="tech-bar-container">
-                            <div class="tech-bar"
-                                 style="width: {{ (menciones / max_menciones * 100) | int }}%">
-                            </div>
-                        </div>
-                        <div class="tech-count">{{ menciones }}</div>
-                    </div>
-                    {% endfor %}
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-top">
+                <div class="brand">
+                    <h1>JobRecon <span>// {{ empresa }}</span></h1>
+                    <p>Passive reconnaissance report</p>
                 </div>
-            {% else %}
-                <p class="empty">No se detectaron tecnologías conocidas.</p>
-            {% endif %}
-        </div>
-    </div>
+            </div>
 
-    <!-- CVEs ENCONTRADAS -->
-    <div class="section">
-        <div class="section-header">// CVEs encontradas (score ≥ 7.0)</div>
-        <div class="section-body">
-            {% if cves %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Severidad</th>
-                            <th>Score</th>
-                            <th>CVE ID</th>
-                            <th>Tecnología</th>
-                            <th>Descripción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for cve in cves %}
-                        <tr>
-                            <td>
-                                <span class="badge badge-{{ cve.severidad }}">
-                                    {{ cve.severidad }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="score score-{{ cve.severidad | lower }}">
-                                    {{ cve.score }}
-                                </span>
-                            </td>
-                            <td class="cve-id">{{ cve.id }}</td>
-                            <td>{{ cve.tecnologia }}</td>
-                            <td>
-                                {{ cve.descripcion }}
-                            </td>
-                        </tr>
+            <div class="meta-grid">
+                <div class="meta-card">
+                    <span class="meta-label">Empresa</span>
+                    <div class="meta-value">{{ empresa }}</div>
+                </div>
+
+                <div class="meta-card">
+                    <span class="meta-label">Fecha</span>
+                    <div class="meta-value">{{ fecha }}</div>
+                </div>
+
+                <div class="meta-card">
+                    <span class="meta-label">Nº Ofertas</span>
+                    <div class="meta-value">{{ num_ofertas }}</div>
+                </div>
+
+                <div class="meta-card">
+                    <span class="meta-label">Nº Tecnologías / CVEs</span>
+                    <div class="meta-value">{{ tecnologias | length }} / {{ cves | length }}</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- TECNOLOGÍAS -->
+        <section class="section">
+            <div class="section-header">// Tecnologías detectadas</div>
+            <div class="section-body">
+                {% if tecnologias %}
+                    {% set max_menciones = tecnologias.values() | max %}
+                    <div class="tech-list">
+                        {% for tech, menciones in tecnologias.items() %}
+                            {% set pct = ((menciones / max_menciones) * 100) if max_menciones else 0 %}
+                            <div class="tech-item">
+                                <div class="tech-row">
+                                    <div class="tech-name">{{ tech }}</div>
+                                    <div class="tech-count">{{ menciones }} menciones</div>
+                                </div>
+                                <div class="progress" aria-label="Progreso de menciones para {{ tech }}">
+                                    <div class="progress-bar" style="width: {{ pct | round(0) }}%;"></div>
+                                </div>
+                            </div>
                         {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p class="empty">No se encontraron CVEs con score ≥ 7.0.</p>
-            {% endif %}
-        </div>
-    </div>
+                    </div>
+                {% else %}
+                    <p class="empty">No se detectaron tecnologías conocidas.</p>
+                {% endif %}
+            </div>
+        </section>
 
-    <!-- FOOTER -->
-    <div class="footer">
-        JOBRECON — OSINT Tool | Passive Reconnaissance | Generated {{ fecha }}
-    </div>
+        <!-- CVEs -->
+        <section class="section">
+            <div class="section-header">// CVEs encontradas</div>
+            <div class="section-body">
+                {% if cves %}
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Severidad</th>
+                                    <th>Score</th>
+                                    <th>Risk Score</th>
+                                    <th>CVE ID</th>
+                                    <th>Tecnología</th>
+                                    <th>Año</th>
+                                    <th>Descripción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cve in cves %}
+                                    {% set sev = (cve.severity or cve.severidad or 'LEGACY') | upper %}
+                                    {% set sev_class = sev | lower %}
+                                    <tr>
+                                        <td>
+                                            <span class="badge badge-{{ sev_class }}">{{ sev }}</span>
+                                        </td>
+                                        <td class="num">
+                                            <span class="score-{{ sev_class }}">
+                                                {{ cve.score }}
+                                            </span>
+                                        </td>
+                                        <td class="num">
+                                            {{ cve.risk_score }}
+                                        </td>
+                                        <td class="cve-id">{{ cve.id }}</td>
+                                        <td class="tech-cell">
+                                            {{ cve.tech or cve.tecnologia or 'N/D' }}
+                                        </td>
+                                        <td class="num">
+                                            {{ cve.year or 'N/D' }}
+                                        </td>
+                                        <td class="desc-cell">
+                                            {{ cve.description or cve.descripcion or 'Sin descripción' }}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="empty">No se encontraron CVEs con score relevante.</p>
+                {% endif %}
+            </div>
+        </section>
 
+        <!-- FOOTER -->
+        <footer class="footer">
+            JOBRECON — OSINT Tool | Passive Reconnaissance
+        </footer>
+    </div>
 </body>
 </html>

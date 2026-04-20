@@ -1,185 +1,257 @@
-# analyzer/cve_lookup.py
+"""
+analyzer/cve_lookup.py
+Consulta NVD para cada tecnología detectada.
+Filtrado por año (2015+), CVSS >= 7.0, deduplicación y scoring de riesgo propio.
+"""
 
-import nvdlib
 import os
 import time
+from datetime import datetime
+import nvdlib
 from dotenv import load_dotenv
-from colorama import Fore, Style
 
 load_dotenv()
+
+# Año mínimo de publicación de CVE. CVEs más antiguas son legacy noise.
+CVE_MIN_YEAR = 2015
+# Score CVSS mínimo para incluir una CVE
+CVE_MIN_SCORE = 7.0
+
+# Mapa de normalización: keyword usado en búsqueda NVD por tecnología
+# Evita buscar "AWS" directamente (falsos positivos brutales).
+TECH_QUERY_MAP = {
+    "AWS":              "Amazon Web Services",
+    "Azure":            "Microsoft Azure",
+    "GCP":              "Google Cloud Platform",
+    "Active Directory": "Microsoft Active Directory",
+    "Python":           "Python interpreter CPython",
+    "Java":             "Oracle Java JDK",
+    "Node":             "Node.js",
+    "Node.js":          "Node.js",
+    "Docker":           "Docker container",
+    "Kubernetes":       "Kubernetes",
+    "VMware":           "VMware ESXi",
+    "Hyper-V":          "Microsoft Hyper-V",
+    "Windows Server":   "Microsoft Windows Server",
+    "Linux":            "Linux Kernel",
+    "Ubuntu":           "Ubuntu",
+    "Debian":           "Debian",
+    "Apache":           "Apache HTTP Server",
+    "Nginx":            "Nginx",
+    "IIS":              "Microsoft IIS",
+    "MySQL":            "MySQL",
+    "PostgreSQL":       "PostgreSQL",
+    "MongoDB":          "MongoDB",
+    "Redis":            "Redis",
+    "SAP":              "SAP NetWeaver",
+    "S/4HANA":          "SAP S/4HANA",
+    "Fortinet":         "Fortinet FortiOS",
+    "Cisco":            "Cisco IOS",
+    "Palo Alto":        "Palo Alto PAN-OS",
+    "Exchange":         "Microsoft Exchange Server",
+    "SharePoint":       "Microsoft SharePoint",
+    "Office 365":       "Microsoft Office 365",
+    "Outlook":          "Microsoft Outlook",
+    "Teams":            "Microsoft Teams",
+    "Jenkins":          "Jenkins",
+    "GitLab":           "GitLab",
+    "GitHub":           "GitHub Enterprise",
+    "Ansible":          "Ansible",
+    "Terraform":        "HashiCorp Terraform",
+    "Elasticsearch":    "Elasticsearch",
+    "Splunk":           "Splunk",
+    "Nagios":           "Nagios",
+    "Zabbix":           "Zabbix",
+    "WordPress":        "WordPress",
+    "Drupal":           "Drupal",
+    "Joomla":           "Joomla",
+    "PHP":              "PHP",
+    "Ruby":             "Ruby on Rails",
+    "Spring":           "Spring Framework",
+    "Tomcat":           "Apache Tomcat",
+    "JBoss":            "JBoss EAP",
+    "WebLogic":         "Oracle WebLogic",
+    "WebSphere":        "IBM WebSphere",
+}
+
+
+def _year_weight(published_date) -> float:
+    """
+    Devuelve un peso basado en la antigüedad del CVE.
+    CVE de este año = 1.0, hace 5 años = 0.5, hace 10 años = 0.0
+    """
+    try:
+        if isinstance(published_date, str):
+            year = int(published_date[:4])
+        elif hasattr(published_date, "year"):
+            year = published_date.year
+        else:
+            year = 2015
+        current_year = datetime.now().year
+        age = current_year - year
+        # Escala lineal: 0 años = 1.0, 10+ años = 0.0
+        return max(0.0, 1.0 - (age / 10.0))
+    except Exception:
+        return 0.5
+
+
+def _risk_score(cvss: float, published_date) -> float:
+    """
+    Score de riesgo propio: combina CVSS y recencia.
+    risk_score = cvss * 0.7 + year_weight * 10 * 0.3
+    Resultado en escala 0-10.
+    """
+    yw = _year_weight(published_date)
+    return round(cvss * 0.7 + yw * 10 * 0.3, 2)
+
+
+def _get_cvss_and_severity(cve) -> tuple[float, str]:
+    """
+    Extrae score CVSS y severidad de un objeto nvdlib CVE.
+    Intenta CVSSv3 primero, luego CVSSv2.
+    """
+    try:
+        # CVSSv3
+        if hasattr(cve, "v31score") and cve.v31score:
+            return float(cve.v31score), str(getattr(cve, "v31severity", "UNKNOWN"))
+        if hasattr(cve, "v30score") and cve.v30score:
+            return float(cve.v30score), str(getattr(cve, "v30severity", "UNKNOWN"))
+        # CVSSv2 fallback
+        if hasattr(cve, "v2score") and cve.v2score:
+            return float(cve.v2score), str(getattr(cve, "v2severity", "LEGACY"))
+    except Exception:
+        pass
+    return 0.0, "UNKNOWN"
 
 
 class CVELookup:
     """
-    Para cada tecnología detectada, consulta la NVD (National Vulnerability Database)
-    y devuelve las CVEs más relevantes ordenadas por severidad.
+    Consulta la NVD para cada tecnología detectada.
+    Aplica normalización de keywords, filtrado por año y scoring propio.
     """
 
-    # Score CVSS mínimo para incluir una CVE en el informe
-    SCORE_MINIMO = 7.0
-
-    # Máximo de CVEs a recuperar por tecnología
-    MAX_CVE_POR_TECH = 5
-
     def __init__(self):
-        self.api_key = os.getenv("NVD_API_KEY") or None
-        self._mostrar_estado_api()
-
-    # ------------------------------------------------------------------
-    # COMPATIBILIDAD CON MAIN (FIX DEL ERROR)
-    # ------------------------------------------------------------------
-
-    def lookup(self, tecnologias: dict) -> list[dict]:
-        """
-        Alias para mantener compatibilidad con código existente (main.py).
-        """
-        return self.buscar(tecnologias)
-
-    # ------------------------------------------------------------------
-    # ESTADO DE LA API
-    # ------------------------------------------------------------------
-
-    def _mostrar_estado_api(self):
-        """Informa si se usará API key o modo sin autenticación."""
+        self.api_key = os.getenv("NVD_API_KEY")
         if self.api_key:
-            print(f"{Fore.GREEN}[CVE]{Style.RESET_ALL} API Key de NVD cargada. Modo rápido (0.6s entre peticiones).")
+            print("[CVE] API Key de NVD cargada. Modo rápido (0.6s entre peticiones).")
+            self.delay = 0.6
         else:
-            print(f"{Fore.YELLOW}[CVE] Sin API Key. Modo lento (6s entre peticiones).{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}[CVE] Obtén tu key gratis en: nvd.nist.gov/developers/request-an-api-key{Style.RESET_ALL}")
+            print("[CVE] Sin API Key. Modo lento (6s entre peticiones).")
+            self.delay = 6.0
 
-    # ------------------------------------------------------------------
-    # MÉTODO PRINCIPAL
-    # ------------------------------------------------------------------
+    def _normalizar_query(self, tech: str) -> str:
+        """
+        Convierte el nombre de la tecnología en una query NVD más precisa.
+        """
+        return TECH_QUERY_MAP.get(tech, tech)
+
+    def _buscar_cves_para_tech(self, tech: str) -> list[dict]:
+        """
+        Busca CVEs en NVD para una tecnología.
+        Devuelve lista de dicts con campos normalizados.
+        """
+        query = self._normalizar_query(tech)
+        resultados = []
+        seen_ids = set()
+
+        try:
+            cves = nvdlib.searchCVE(
+                keywordSearch=query,
+                key=self.api_key,
+                delay=self.delay,
+                limit=20,  # Traemos 20 y filtramos
+            )
+
+            for cve in cves:
+                cve_id = getattr(cve, "id", None) or getattr(cve, "cveId", "UNKNOWN")
+
+                # Deduplicar
+                if cve_id in seen_ids:
+                    continue
+                seen_ids.add(cve_id)
+
+                # Score y severidad
+                score, severity = _get_cvss_and_severity(cve)
+
+                # Filtrar por score mínimo
+                if score < CVE_MIN_SCORE:
+                    continue
+
+                # Año de publicación
+                published_raw = getattr(cve, "published", None)
+                try:
+                    if isinstance(published_raw, str):
+                        year = int(published_raw[:4])
+                    elif hasattr(published_raw, "year"):
+                        year = published_raw.year
+                    else:
+                        year = 0
+                except Exception:
+                    year = 0
+
+                # Filtrar por año mínimo
+                if year and year < CVE_MIN_YEAR:
+                    continue
+
+                # Descripción
+                descripcion = "Sin descripción disponible."
+                try:
+                    if hasattr(cve, "descriptions") and cve.descriptions:
+                        for d in cve.descriptions:
+                            if getattr(d, "lang", "") == "en":
+                                descripcion = d.value
+                                break
+                except Exception:
+                    pass
+
+                rs = _risk_score(score, published_raw)
+
+                resultados.append({
+                    "id": cve_id,
+                    "tech": tech,
+                    "score": score,
+                    "severity": severity,
+                    "year": year,
+                    "risk_score": rs,
+                    "description": descripcion[:300],
+                })
+
+        except Exception as e:
+            print(f"    [!] Error consultando NVD para '{tech}': {e}")
+
+        # Ordenar por risk_score descendente, tomar top 5 por tecnología
+        resultados.sort(key=lambda x: x["risk_score"], reverse=True)
+        return resultados[:5]
 
     def buscar(self, tecnologias: dict) -> list[dict]:
         """
-        Recibe el diccionario de tecnologías detectadas y devuelve
-        una lista de CVEs ordenadas por score CVSS descendente.
+        Recibe dict {tech: menciones} y devuelve lista de CVEs ordenadas por risk_score.
         """
         if not tecnologias:
-            print(f"{Fore.YELLOW}[CVE] No hay tecnologías para consultar.{Style.RESET_ALL}")
             return []
 
-        print(f"{Fore.CYAN}[CVE]{Style.RESET_ALL} Consultando NVD para {len(tecnologias)} tecnologías...\n")
-
+        print(f"[CVE] Consultando NVD para {len(tecnologias)} tecnologías...")
         todas_cves = []
 
-        for tech in tecnologias.keys():
-            cves = self._buscar_cves_de_tech(tech)
+        for tech in tecnologias:
+            print(f"  → Buscando CVEs para: {tech}")
+            cves = self._buscar_cves_para_tech(tech)
             todas_cves.extend(cves)
-            time.sleep(0.5)
+            print(f"    ✓ {len(cves)} CVEs relevantes encontradas")
 
-        # Ordenar por score descendente
-        todas_cves.sort(key=lambda x: x["score"], reverse=True)
+        # Deduplicar a nivel global por CVE ID
+        seen = set()
+        unicas = []
+        for cve in todas_cves:
+            if cve["id"] not in seen:
+                seen.add(cve["id"])
+                unicas.append(cve)
 
-        self._mostrar_resumen(todas_cves)
-        return todas_cves
+        # Ordenar por risk_score descendente
+        unicas.sort(key=lambda x: x["risk_score"], reverse=True)
 
-    # ------------------------------------------------------------------
-    # BÚSQUEDA DE CVEs POR TECNOLOGÍA
-    # ------------------------------------------------------------------
+        return unicas
 
-    def _buscar_cves_de_tech(self, tech: str) -> list[dict]:
-        print(f"  {Fore.CYAN}→{Style.RESET_ALL} Buscando CVEs para: {tech}")
-
-        try:
-            resultados = nvdlib.searchCVE(
-                keywordSearch=tech,
-                limit=self.MAX_CVE_POR_TECH,
-                key=self.api_key,
-                delay=None
-            )
-        except Exception as e:
-            print(f"{Fore.RED}  [!] Error consultando NVD para '{tech}': {e}{Style.RESET_ALL}")
-            return []
-
-        cves_filtradas = []
-
-        for cve in resultados:
-            score, severidad = self._extraer_score(cve)
-
-            if score < self.SCORE_MINIMO:
-                continue
-
-            cves_filtradas.append({
-                "id": cve.id,
-                "tecnologia": tech,
-                "severidad": severidad,
-                "score": score,
-                "descripcion": self._extraer_descripcion(cve),
-            })
-
-        print(f"    {Fore.GREEN}✓{Style.RESET_ALL} {len(cves_filtradas)} CVEs relevantes encontradas")
-        return cves_filtradas
-
-    # ------------------------------------------------------------------
-    # HELPERS
-    # ------------------------------------------------------------------
-
-    def _extraer_score(self, cve) -> tuple[float, str]:
-        try:
-            metricas = getattr(cve, "metrics", None)
-
-            if metricas:
-                v31 = getattr(metricas, "cvssMetricV31", None)
-                v30 = getattr(metricas, "cvssMetricV30", None)
-
-                if v31:
-                    datos = v31[0].cvssData
-                    return round(datos.baseScore, 1), datos.baseSeverity
-
-                if v30:
-                    datos = v30[0].cvssData
-                    return round(datos.baseScore, 1), datos.baseSeverity
-
-                v2 = getattr(metricas, "cvssMetricV2", None)
-                if v2:
-                    datos = v2[0].cvssData
-                    return round(datos.baseScore, 1), "LEGACY"
-
-        except Exception:
-            pass
-
-        return 0.0, "UNKNOWN"
-
-    def _extraer_descripcion(self, cve) -> str:
-        try:
-            for desc in getattr(cve, "descriptions", []):
-                if desc.lang == "en":
-                    texto = desc.value
-                    return texto[:200] + "..." if len(texto) > 200 else texto
-        except Exception:
-            pass
-
-        return "No description available."
-
-    # ------------------------------------------------------------------
-    # OUTPUT
-    # ------------------------------------------------------------------
-
-    def _mostrar_resumen(self, cves: list[dict]):
-        if not cves:
-            print(f"{Fore.YELLOW}[CVE] No se encontraron CVEs relevantes (score >= {self.SCORE_MINIMO}).{Style.RESET_ALL}")
-            return
-
-        COLOR_SEVERIDAD = {
-            "CRITICAL": Fore.RED,
-            "HIGH":     Fore.LIGHTYELLOW_EX,
-            "MEDIUM":   Fore.YELLOW,
-            "LEGACY":   Fore.WHITE,
-            "UNKNOWN":  Fore.WHITE,
-        }
-
-        print(f"\n{Fore.GREEN}{'─' * 70}")
-        print(f"  CVEs ENCONTRADAS ({len(cves)} resultados)")
-        print(f"{'─' * 70}{Style.RESET_ALL}")
-
-        for cve in cves:
-            color = COLOR_SEVERIDAD.get(cve["severidad"], Fore.WHITE)
-            print(
-                f"  {color}[{cve['severidad']:<8} {cve['score']}]{Style.RESET_ALL} "
-                f"{cve['id']} — {cve['tecnologia']}\n"
-                f"    {cve['descripcion'][:100]}..."
-            )
-
-        print(f"{Fore.GREEN}{'─' * 70}{Style.RESET_ALL}\n")
+    # Alias para compatibilidad con main.py
+    def lookup(self, tecnologias: dict) -> list[dict]:
+        return self.buscar(tecnologias)
