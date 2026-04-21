@@ -139,6 +139,7 @@ class InfoJobsScraper:
         """
         try:
             from jobspy import scrape_jobs
+
             jobs = scrape_jobs(
                 site_name=["linkedin"],
                 search_term=self.empresa,
@@ -146,16 +147,47 @@ class InfoJobsScraper:
                 results_wanted=self.max_ofertas,
                 country_indeed="Spain",
             )
+
             if jobs is None or jobs.empty:
                 return []
+
             textos = []
+            descartadas_sin_desc = 0
+            descartadas_cortas = 0
+            debug = False  # Ponlo en True si quieres ver métricas
+
             for _, row in jobs.iterrows():
-                titulo = str(row.get("title", ""))
-                desc = str(row.get("description", ""))
-                texto = self._limpiar_texto(f"{titulo} {desc}")
-                if texto:
-                    textos.append(texto)
+                titulo = str(row.get("title", "")).strip()
+                desc_raw = row.get("description", None)
+
+                # Validar descripción
+                desc = ""
+                if desc_raw is not None:
+                    desc = str(desc_raw).strip()
+                    if desc.lower() == "none" or desc == "":
+                        desc = ""
+
+                # Construcción del texto sin "None"
+                if desc:
+                    texto = self._limpiar_texto(f"{titulo} {desc}")
+                else:
+                    texto = self._limpiar_texto(titulo)
+                    descartadas_sin_desc += 1
+
+                # Filtrar textos inútiles
+                if not texto or len(texto) < 50:
+                    descartadas_cortas += 1
+                    continue
+
+                textos.append(texto)
+
+            if debug:
+                print(f"[DEBUG] JobSpy: {descartadas_sin_desc} ofertas sin descripción válida.")
+                print(f"[DEBUG] JobSpy: {descartadas_cortas} ofertas descartadas por ser cortas (<50 chars).")
+                print(f"[DEBUG] JobSpy: {len(textos)} ofertas finales válidas.")
+
             return textos
+
         except Exception:
             return []
 

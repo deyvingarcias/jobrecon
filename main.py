@@ -84,6 +84,12 @@ def main():
             print(Fore.RED + "[x] No se han obtenido ofertas válidas desde ninguna fuente.")
             sys.exit(1)
 
+        # DEBUG TEMPORAL
+        for i, texto in enumerate(textos[:2]):
+            print(f"\n--- OFERTA {i+1} ---")
+            print(texto[:400])
+            print("---")
+
         tecnologias = TechExtractor().extract(textos) or {}
 
         if not tecnologias:
