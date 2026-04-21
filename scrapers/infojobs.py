@@ -365,14 +365,38 @@ class InfoJobsScraper:
         """
         print(f"[*] Buscando ofertas en InfoJobs para: {self.empresa}")
 
+        frases_bloqueadas = [
+            "en qué podemos ayudarte",
+            "consejos para tu búsqueda",
+            "buscar empleo en infojobs",
+            "eres humano o un robot",
+        ]
+
         try:
             textos = self._obtener_con_playwright() or []
-            if textos:
-                print(f"[+] InfoJobs Playwright: {len(textos)} ofertas obtenidas.")
-                return textos[: self.max_ofertas]
-            print("[!] Playwright no devolvió resultados útiles.")
+
+            textos_filtrados = []
+            descartados = 0
+            for texto in textos:
+                texto_limpio = self._limpiar_texto(texto)
+                texto_norm = texto_limpio.lower()
+                if any(frase in texto_norm for frase in frases_bloqueadas):
+                    descartados += 1
+                    continue
+                textos_filtrados.append(texto_limpio)
+
+            if descartados:
+                print(f"[!] InfoJobs: {descartados} textos descartados por ser páginas de ayuda o CAPTCHA.")
+
+            if textos_filtrados:
+                print(f"[+] InfoJobs Playwright: {len(textos_filtrados)} ofertas obtenidas.")
+                return textos_filtrados[: self.max_ofertas]
+
+            print("[!] Playwright no devolvió resultados útiles. Usando fallback JobSpy (LinkedIn)...")
+
         except Exception as e:
             print(f"[!] Playwright falló: {e}")
+            print("[!] Usando fallback JobSpy (LinkedIn)...")
 
         textos = self._fallback_jobspy()
         print(f"[+] InfoJobs/LinkedIn (fallback): {len(textos)} ofertas obtenidas.")
