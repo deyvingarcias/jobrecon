@@ -1,14 +1,16 @@
 """
 scrapers/infojobs.py
-Scraper directo de InfoJobs usando requests + BeautifulSoup.
-Fallback a JobSpy si falla.
+Scraper de InfoJobs usando Playwright (headless).
+Fallback a JobSpy si Playwright falla.
 """
 
-import time
 import random
-import requests
-from bs4 import BeautifulSoup
+import re
+import time
 from urllib.parse import quote_plus
+
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright
 
 
 class InfoJobsScraper:
@@ -20,125 +22,294 @@ class InfoJobsScraper:
 
     BASE_URL = "https://www.infojobs.net/jobsearch/search-results/list.xhtml"
 
-    HEADERS_POOL = [
-        {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/122.0.0.0 Safari/537.36",
-            "Accept-Language": "es-ES,es;q=0.9",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Referer": "https://www.infojobs.net/",
-        },
-        {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                          "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                          "Version/17.0 Safari/605.1.15",
-            "Accept-Language": "es-ES,es;q=0.8,en;q=0.5",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Referer": "https://www.infojobs.net/",
-        },
-    ]
+    USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    )
 
     def __init__(self, empresa: str, max_ofertas: int = 15):
         self.empresa = empresa
         self.max_ofertas = max_ofertas
-        self.session = requests.Session()
-
-    def _get_headers(self) -> dict:
-        return random.choice(self.HEADERS_POOL)
-
-    def _delay(self, min_s: float = 1.0, max_s: float = 2.5):
-        time.sleep(random.uniform(min_s, max_s))
 
     def _limpiar_texto(self, texto: str) -> str:
         """Elimina espacios extra y saltos de línea innecesarios."""
-        import re
-        texto = re.sub(r'\s+', ' ', texto)
+        texto = re.sub(r"\s+", " ", texto or "")
         return texto.strip()
 
-    def _get_pagina(self, pagina: int = 1) -> BeautifulSoup | None:
-        """
-        Descarga una página de resultados de InfoJobs para la empresa dada.
-        Devuelve el objeto BeautifulSoup o None si falla.
-        """
-        params = {
-            "keyword": self.empresa,
-            "page": pagina,
-            "sortBy": "RELEVANCE",
-        }
-        try:
-            resp = self.session.get(
-                self.BASE_URL,
-                params=params,
-                headers=self._get_headers(),
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                return BeautifulSoup(resp.text, "html.parser")
-            else:
-                return None
-        except Exception:
-            return None
+    def _normalizar_desc(self, desc_raw) -> str:
+        """Convierte None/'None'/vacío en string vacío."""
+        if desc_raw is None:
+            return ""
+        desc = str(desc_raw).strip()
+        if not desc or desc.lower() == "none":
+            return ""
+        return desc
 
-    def _extraer_ofertas_pagina(self, soup: BeautifulSoup) -> list[str]:
+    def _extraer_texto_item(self, item) -> tuple[str, str]:
         """
-        Extrae texto de ofertas de una página de resultados de InfoJobs.
-        Devuelve lista de strings (título + descripción snippet).
+        Extrae título, snippet y link de una oferta del DOM.
+        Devuelve: (texto_final, href)
+        """
+        titulo = ""
+        desc = ""
+        href = ""
+
+        try:
+            title_candidates = [
+                "h2",
+                "h3",
+                "h4",
+                "[class*='title']",
+                "a[title]",
+            ]
+            for sel in title_candidates:
+                loc = item.locator(sel).first
+                if loc.count() > 0:
+                    try:
+                        titulo = self._limpiar_texto(loc.inner_text(timeout=1200))
+                    except Exception:
+                        try:
+                            titulo = self._limpiar_texto(loc.get_attribute("title") or "")
+                        except Exception:
+                            titulo = ""
+                    if titulo:
+                        break
+        except Exception:
+            pass
+
+        try:
+            desc_candidates = [
+                "p",
+                "[class*='desc']",
+                "[class*='snippet']",
+                "[class*='summary']",
+                "[class*='detail']",
+            ]
+            for sel in desc_candidates:
+                loc = item.locator(sel).first
+                if loc.count() > 0:
+                    try:
+                        desc = self._limpiar_texto(loc.inner_text(timeout=1200))
+                    except Exception:
+                        desc = ""
+                    if desc:
+                        break
+        except Exception:
+            pass
+
+        try:
+            link_candidates = [
+                "a[href*='/oferta-empleo/']",
+                "a[href*='/job/']",
+                "a[href]",
+            ]
+            for sel in link_candidates:
+                loc = item.locator(sel).first
+                if loc.count() > 0:
+                    try:
+                        href = loc.get_attribute("href") or ""
+                    except Exception:
+                        href = ""
+                    if href:
+                        break
+        except Exception:
+            pass
+
+        texto = self._limpiar_texto(f"{titulo} {desc}".strip())
+        return texto, href
+
+    def _leer_detalle_oferta(self, context, href: str) -> str:
+        """
+        Abre la oferta individual para intentar obtener una descripción completa.
+        Devuelve texto limpio o string vacío.
+        """
+        if not href:
+            return ""
+
+        if href.startswith("/"):
+            url = f"https://www.infojobs.net{href}"
+        elif href.startswith("http"):
+            url = href
+        else:
+            url = f"https://www.infojobs.net/{href.lstrip('/')}"
+
+        page = context.new_page()
+        try:
+            page.set_default_timeout(8000)
+            page.goto(url, wait_until="domcontentloaded", timeout=8000)
+            if "/distil/distil/captcha.xhtml" in page.url:
+                return ""
+
+            # Intentamos capturar contenido relevante de la ficha.
+            selectores = [
+                "main",
+                "article",
+                "[class*='job-description']",
+                "[class*='description']",
+                "[class*='offer']",
+                "body",
+            ]
+
+            contenido = ""
+            for sel in selectores:
+                loc = page.locator(sel).first
+                try:
+                    if loc.count() > 0:
+                        contenido = self._limpiar_texto(loc.inner_text(timeout=2500))
+                        if contenido:
+                            break
+                except Exception:
+                    continue
+
+            return contenido
+        except Exception:
+            return ""
+        finally:
+            try:
+                page.close()
+            except Exception:
+                pass
+
+    def _obtener_con_playwright(self) -> list[str]:
+        """
+        Scraping principal con Playwright.
+        Hace un intento normal y, si detecta CAPTCHA, reintenta una vez tras 3s.
         """
         textos = []
 
-        # InfoJobs usa diferentes selectores según la versión del HTML.
-        # Intentamos varios para ser resilientes a cambios de layout.
-        candidatos = []
-
-        # Selector principal: tarjetas de oferta modernas
-        candidatos += soup.select("li[data-jobid]")
-        candidatos += soup.select("article.ij-OfferCard")
-        candidatos += soup.select("div.ij-OfferCard-description")
-        candidatos += soup.select("li.ij-OfferListItem")
-
-        # Fallback genérico: buscar cualquier elemento con título de oferta
-        if not candidatos:
-            candidatos = soup.find_all(
-                ["article", "li", "div"],
-                class_=lambda c: c and ("offer" in c.lower() or "job" in c.lower()),
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=self.USER_AGENT,
+                viewport={"width": 1366, "height": 768},
+                locale="es-ES",
             )
 
-        for item in candidatos:
-            partes = []
+            def cargar_y_extraer() -> list[str]:
+                page = context.new_page()
+                try:
+                    page.set_default_timeout(8000)
 
-            # Título
-            titulo = item.find(["h2", "h3", "h4", "a"], class_=lambda c: c and "title" in c.lower() if c else False)
-            if not titulo:
-                titulo = item.find(["h2", "h3", "h4"])
-            if titulo:
-                partes.append(titulo.get_text(separator=" "))
+                    url = f"{self.BASE_URL}?keyword={quote_plus(self.empresa)}"
+                    print(f"[*] Abriendo InfoJobs: {self.empresa}")
 
-            # Descripción / snippet
-            desc = item.find(
-                ["p", "div", "span"],
-                class_=lambda c: c and any(x in c.lower() for x in ["desc", "snippet", "summary", "detail"]) if c else False,
-            )
-            if desc:
-                partes.append(desc.get_text(separator=" "))
+                    page.goto(url, wait_until="domcontentloaded", timeout=8000)
 
-            # Texto completo como fallback
-            if not partes:
-                partes.append(item.get_text(separator=" "))
+                    # Detección de CAPTCHA por URL o por contenido inline
+                    try:
+                        html = page.content().lower()
+                        if (
+                            "/distil/distil/captcha.xhtml" in page.url
+                            or "humano o un robot" in html
+                            or "eres humano" in html
+                        ):
+                            raise RuntimeError("CAPTCHA detectado en InfoJobs")
+                    except Exception as e:
+                        if "CAPTCHA detectado" in str(e):
+                            raise
+                        # Si page.content() falla por cualquier motivo, seguimos con la extracción normal
+                        pass
 
-            texto = self._limpiar_texto(" ".join(partes))
-            if texto and len(texto) > 20:
-                textos.append(texto)
+                    # Espera a que aparezca algo parecido a una oferta
+                    selectors = [
+                        "li[data-jobid]",
+                        "article.ij-OfferCard",
+                        "li.ij-OfferListItem",
+                        "article",
+                        "li",
+                    ]
 
-        return textos
+                    found = False
+                    for sel in selectors:
+                        try:
+                            page.locator(sel).first.wait_for(state="visible", timeout=8000)
+                            found = True
+                            break
+                        except Exception:
+                            continue
+
+                    if not found:
+                        raise TimeoutError("No se encontraron resultados visibles en el tiempo esperado")
+
+                    containers = []
+                    for sel in [
+                        "li[data-jobid]",
+                        "article.ij-OfferCard",
+                        "li.ij-OfferListItem",
+                    ]:
+                        try:
+                            handles = page.locator(sel).all()
+                            if handles:
+                                containers.extend(handles)
+                        except Exception:
+                            pass
+
+                    if not containers:
+                        containers = page.locator("article, li").all()
+
+                    for item in containers:
+                        if len(textos) >= self.max_ofertas:
+                            break
+
+                        texto_base, href = self._extraer_texto_item(item)
+                        if not texto_base:
+                            continue
+
+                        # Si el snippet es corto, intentamos ampliar con la ficha.
+                        if len(texto_base) < 100 and href:
+                            detalle = self._leer_detalle_oferta(context, href)
+                            if detalle:
+                                combinado = self._limpiar_texto(f"{texto_base} {detalle}")
+                                texto_final = combinado
+                            else:
+                                texto_final = texto_base
+                        else:
+                            texto_final = texto_base
+
+                        if texto_final and len(texto_final) >= 50:
+                            textos.append(texto_final)
+
+                    return textos
+
+                finally:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
+
+            try:
+                try:
+                    textos = cargar_y_extraer()
+                except RuntimeError as e:
+                    if "CAPTCHA detectado" in str(e):
+                        print("[!] CAPTCHA detectado en InfoJobs, reintentando en 3 segundos...")
+                        time.sleep(3)
+                        textos = cargar_y_extraer()
+                    else:
+                        raise
+
+            finally:
+                try:
+                    context.close()
+                except Exception:
+                    pass
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+
+        return textos[: self.max_ofertas]
 
     def _fallback_jobspy(self) -> list[str]:
         """
-        Fallback: usa JobSpy con LinkedIn si InfoJobs directo falla.
+        Fallback: usa JobSpy con LinkedIn si InfoJobs falla.
         Devuelve lista de strings.
         """
         try:
             from jobspy import scrape_jobs
+
+            print("[!] Playwright falló. Usando fallback JobSpy (LinkedIn)...")
 
             jobs = scrape_jobs(
                 site_name=["linkedin"],
@@ -160,21 +331,14 @@ class InfoJobsScraper:
                 titulo = str(row.get("title", "")).strip()
                 desc_raw = row.get("description", None)
 
-                # Validar descripción
-                desc = ""
-                if desc_raw is not None:
-                    desc = str(desc_raw).strip()
-                    if desc.lower() == "none" or desc == "":
-                        desc = ""
+                desc = self._normalizar_desc(desc_raw)
 
-                # Construcción del texto sin "None"
                 if desc:
                     texto = self._limpiar_texto(f"{titulo} {desc}")
                 else:
                     texto = self._limpiar_texto(titulo)
                     descartadas_sin_desc += 1
 
-                # Filtrar textos inútiles
                 if not texto or len(texto) < 50:
                     descartadas_cortas += 1
                     continue
@@ -186,46 +350,33 @@ class InfoJobsScraper:
                 print(f"[DEBUG] JobSpy: {descartadas_cortas} ofertas descartadas por ser cortas (<50 chars).")
                 print(f"[DEBUG] JobSpy: {len(textos)} ofertas finales válidas.")
 
-            return textos
+            return textos[: self.max_ofertas]
 
-        except Exception:
+        except Exception as e:
+            print(f"[!] Fallback JobSpy falló: {e}")
             return []
 
     def obtener_ofertas(self) -> list[str]:
         """
-        Método principal. Intenta scraping directo de InfoJobs.
+        Método principal.
+        Intenta scraping con Playwright.
         Si no obtiene resultados, cae al fallback JobSpy.
         Devuelve lista de strings (máx self.max_ofertas).
         """
         print(f"[*] Buscando ofertas en InfoJobs para: {self.empresa}")
-        textos = []
-        pagina = 1
 
-        while len(textos) < self.max_ofertas:
-            soup = self._get_pagina(pagina)
-            if not soup:
-                break
+        try:
+            textos = self._obtener_con_playwright() or []
+            if textos:
+                print(f"[+] InfoJobs Playwright: {len(textos)} ofertas obtenidas.")
+                return textos[: self.max_ofertas]
+            print("[!] Playwright no devolvió resultados útiles.")
+        except Exception as e:
+            print(f"[!] Playwright falló: {e}")
 
-            nuevos = self._extraer_ofertas_pagina(soup)
-            if not nuevos:
-                break
-
-            textos.extend(nuevos)
-            pagina += 1
-            self._delay()
-
-        # Recortar al máximo solicitado
-        textos = textos[: self.max_ofertas]
-
-        if textos:
-            print(f"[+] InfoJobs directo: {len(textos)} ofertas obtenidas.")
-            return textos
-
-        # Fallback
-        print("[!] InfoJobs directo falló. Usando fallback JobSpy (LinkedIn)...")
         textos = self._fallback_jobspy()
         print(f"[+] InfoJobs/LinkedIn (fallback): {len(textos)} ofertas obtenidas.")
-        return textos
+        return textos[: self.max_ofertas]
 
     # Alias para compatibilidad con main.py
     def scrape(self) -> list[str]:
